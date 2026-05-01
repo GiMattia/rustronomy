@@ -1,0 +1,13 @@
+[project]
+name = "rustronomy"
+version = "0.1.0"
+description = "Rust library for tracing 2D field lines with optional Python bindings"
+
+[tool.maturin]
+bindings = "pyo3"
+features = ["python-extension"]
+module-name = "rustronomy"
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"

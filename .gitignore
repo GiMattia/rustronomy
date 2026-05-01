@@ -1,0 +1,10 @@
+/target
+.codex
+.pytest_cache/
+.venv
+.vscode
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo

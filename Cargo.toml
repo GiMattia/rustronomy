@@ -1,0 +1,15 @@
+[package]
+name = "rustronomy"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+python = ["dep:pyo3", "dep:numpy"]
+python-extension = ["python", "pyo3/extension-module"]
+
+[dependencies]
+pyo3 = { version = "0.28", features = ["auto-initialize"], optional = true }
+numpy = { version = "0.28", optional = true }
