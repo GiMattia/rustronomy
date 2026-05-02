@@ -53,6 +53,14 @@ fn trace_fieldlines(
 }
 
 fn extract_vector(arg: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+    if arg.hasattr("ravel")? {
+        // Rust indexing uses idx = j * nx + i, which corresponds to Fortran-order
+        // flattening for arrays shaped as (nx, ny).
+        let flattened = arg.call_method1("ravel", ("F",))?;
+        let list = flattened.call_method0("tolist")?;
+        return list.extract::<Vec<f64>>();
+    }
+
     if let Ok(array) = arg.extract::<PyReadonlyArray1<'_, f64>>() {
         return Ok(array.as_slice()?.to_vec());
     }
@@ -63,12 +71,6 @@ fn extract_vector(arg: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
 
     if let Ok(values) = arg.extract::<Vec<f64>>() {
         return Ok(values);
-    }
-
-    if arg.hasattr("ravel")? {
-        let flattened = arg.call_method0("ravel")?;
-        let list = flattened.call_method0("tolist")?;
-        return list.extract::<Vec<f64>>();
     }
 
     Err(pyo3::exceptions::PyTypeError::new_err(
@@ -83,6 +85,73 @@ fn extract_field(data: &Bound<'_, PyAny>, field: &Bound<'_, PyAny>) -> PyResult<
     }
 
     extract_vector(field)
+}
+
+fn trace_line_until_close(
+    grid: &VectorGrid2D,
+    seed: (f64, f64),
+    step: f64,
+    max_steps: usize,
+    close_on_loop: bool,
+    close_tol: f64,
+    min_time_before_close: f64,
+) -> (Vec<(f64, f64)>, bool) {
+    let mut path = Vec::with_capacity(max_steps + 2);
+
+    if grid.interpolate(seed.0, seed.1).is_none() {
+        return (path, false);
+    }
+
+    path.push(seed);
+    let mut current = seed;
+    let mut closed = false;
+
+    for step_idx in 0..max_steps {
+        let (x, y) = current;
+
+        let (k1x, k1y) = match grid.interpolate(x, y) {
+            Some(v) => v,
+            None => break,
+        };
+
+        let (k2x, k2y) = match grid.interpolate(x + step * 0.5 * k1x, y + step * 0.5 * k1y) {
+            Some(v) => v,
+            None => break,
+        };
+
+        let (k3x, k3y) = match grid.interpolate(x + step * 0.5 * k2x, y + step * 0.5 * k2y) {
+            Some(v) => v,
+            None => break,
+        };
+
+        let (k4x, k4y) = match grid.interpolate(x + step * k3x, y + step * k3y) {
+            Some(v) => v,
+            None => break,
+        };
+
+        let next_x = x + (step / 6.0) * (k1x + 2.0 * k2x + 2.0 * k3x + k4x);
+        let next_y = y + (step / 6.0) * (k1y + 2.0 * k2y + 2.0 * k3y + k4y);
+
+        if grid.interpolate(next_x, next_y).is_none() {
+            break;
+        }
+
+        current = (next_x, next_y);
+        path.push(current);
+
+        if close_on_loop {
+            let dx = current.0 - seed.0;
+            let dy = current.1 - seed.1;
+            let elapsed_time = (step_idx as f64 + 1.0) * step.abs();
+            if elapsed_time > min_time_before_close && (dx * dx + dy * dy).sqrt() <= close_tol {
+                path.push(seed);
+                closed = true;
+                break;
+            }
+        }
+    }
+
+    (path, closed)
 }
 
 #[pyfunction(signature = (
@@ -127,7 +196,7 @@ fn find_fieldlines(
     text: bool,
     transpose: bool,
 ) -> PyResult<Py<PyAny>> {
-    let _ = (rtol, atol, order, dense, close, ctol, text, transpose);
+    let _ = (rtol, atol, order, dense, text, transpose);
 
     let xc = match x1 {
         Some(values) => extract_vector(values)?,
@@ -188,6 +257,9 @@ fn find_fieldlines(
     let max_steps = numsteps.unwrap_or(16384);
     let max_step = maxstep.unwrap_or(100.0 * step);
     let signed_step = step.min(max_step);
+    let close_on_loop = close.unwrap_or(true);
+    let close_tol = ctol.unwrap_or(1.0e-6);
+    let min_time_before_close = max_step;
 
     let grid = VectorGrid2D::new(
         xc[0],
@@ -202,8 +274,44 @@ fn find_fieldlines(
 
     let lines = PyList::empty(py);
     for (&seed_x, &seed_y) in x0.iter().zip(y0.iter()) {
-        let backward = grid.trace_line((seed_x, seed_y), -signed_step, max_steps);
-        let forward = grid.trace_line((seed_x, seed_y), signed_step, max_steps);
+        let (forward, closed_forward) = trace_line_until_close(
+            &grid,
+            (seed_x, seed_y),
+            signed_step,
+            max_steps,
+            close_on_loop,
+            close_tol,
+            min_time_before_close,
+        );
+
+        if closed_forward && forward.len() > 2 {
+            let mut x_line = Vec::with_capacity(forward.len());
+            let mut y_line = Vec::with_capacity(forward.len());
+            for &(x, y) in &forward {
+                x_line.push(x);
+                y_line.push(y);
+            }
+
+            let pair = PyList::new(
+                py,
+                [
+                    PyArray1::from_vec(py, x_line).into_any(),
+                    PyArray1::from_vec(py, y_line).into_any(),
+                ],
+            )?;
+            lines.append(pair)?;
+            continue;
+        }
+
+        let (backward, _) = trace_line_until_close(
+            &grid,
+            (seed_x, seed_y),
+            -signed_step,
+            max_steps,
+            false,
+            close_tol,
+            min_time_before_close,
+        );
 
         let mut x_line = Vec::with_capacity(backward.len() + forward.len().saturating_sub(1));
         let mut y_line = Vec::with_capacity(backward.len() + forward.len().saturating_sub(1));
