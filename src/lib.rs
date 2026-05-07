@@ -18,7 +18,7 @@ impl VectorGrid2D {
     ///
     /// # Example
     /// ```
-    /// use rustronomy::VectorGrid2D;
+    /// use rastra::VectorGrid2D;
     ///
     /// let bx = vec![1.0, 1.0, 1.0, 1.0];
     /// let by = vec![0.0, 0.0, 0.0, 0.0];
@@ -154,4 +154,3 @@ impl VectorGrid2D {
     }
 
 }
-

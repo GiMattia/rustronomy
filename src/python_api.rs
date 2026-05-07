@@ -343,7 +343,7 @@ fn find_fieldlines(
 
 /// Python module definition.
 #[pymodule]
-fn rustronomy(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn rastra(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(trace_fieldlines, m)?)?;
     m.add_function(wrap_pyfunction!(find_fieldlines, m)?)?;
     Ok(())

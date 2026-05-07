@@ -1,14 +1,15 @@
 [package]
-name = "rustronomy"
-version = "0.1.1"
+name = "rastra"
+version = "0.1.2"
 edition = "2024"
+license = "BSD-3-Clause"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [features]
 python = ["dep:pyo3", "dep:numpy"]
-python-extension = ["python", "pyo3/extension-module"]
+python-extension = ["python", "pyo3/extension-module", "pyo3/abi3-py311"]
 
 [dependencies]
 pyo3 = { version = "0.28", features = ["auto-initialize"], optional = true }

@@ -1,8 +1,8 @@
-# rustronomy
+# RASTRA
 
 Simple Rust-backed Python module for tracing field lines.
 
-This package is built with `maturin` and published to PyPI as `rustronomy`.
+This package is built with `maturin` and published to PyPI as `rastra`.
 
 ## Build and install locally
 
@@ -11,7 +11,7 @@ uv pip install -e .
 ```
 
 This installs:
-- `rustronomy` (Rust extension module)
+- `rastra` (Rust extension module)
 
 If you prefer using `maturin` directly:
 
@@ -23,9 +23,9 @@ maturin develop
 
 ```python
 import numpy as np
-import rustronomy
+import rastra
 
-paths = rustronomy.trace_fieldlines(
+paths = rastra.trace_fieldlines(
 	xmin=0.0,
 	xmax=1.0,
 	ymin=0.0,
@@ -60,10 +60,10 @@ uvx maturin build
 4. Optionally validate the built wheel in a clean environment:
 
 ```bash
-uv venv /tmp/rustronomy-test
-source /tmp/rustronomy-test/bin/activate
+uv venv /tmp/rastra-test
+source /tmp/rastra-test/bin/activate
 uv pip install dist/*.whl
-python -c "import rustronomy; print(sorted(name for name in dir(rustronomy) if 'fieldlines' in name))"
+python -c "import rastra; print(sorted(name for name in dir(rastra) if 'fieldlines' in name))"
 ```
 
 5. Publish to TestPyPI first:
@@ -78,7 +78,7 @@ uvx maturin publish --repository testpypi
 uvx maturin publish
 ```
 
-If the name `rustronomy` is already taken on PyPI, change the `name` field in `pyproject.toml` before publishing.
+The package name is configured as `rastra` in `pyproject.toml`.
 
 ## Minimal repository layout
 
